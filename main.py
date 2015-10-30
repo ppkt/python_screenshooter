@@ -1,9 +1,11 @@
 import logging
-from PyQt5.QtCore import QTimer
-from PyQt5.QtGui import QGuiApplication, QPainter, QPixmap
-from PyQt5.QtWidgets import QApplication, QWidget, QMainWindow, QFileDialog
 import sys
 import os
+
+from PyQt5.QtCore import QTimer
+from PyQt5.QtGui import QGuiApplication
+from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog
+
 from gui import Ui_MainWindow
 
 logger = logging.getLogger(__name__)
@@ -24,10 +26,10 @@ class ScreenShooter(Ui_MainWindow, QMainWindow):
 
         self.screenshot = None
 
-        self.supported_extensions = ['png', 'jpg']
+        self.supported_extensions = ['png', 'bmp', 'jpeg', 'jpg']
         # create filter
-        self.filter = "Images ({})".format(' '.join(("*." + extension) for extension in self.supported_extensions))
-        logger.debug(self.filter)
+        self.filter = "Images ({})".format(' '.join(
+            ("*." + extension) for extension in self.supported_extensions))
 
     def btn_take_screenshot_clicked(self):
         """
@@ -45,13 +47,15 @@ class ScreenShooter(Ui_MainWindow, QMainWindow):
         """
 
         # display dialog with path to image
-        (path, unused_filter) = QFileDialog.getSaveFileName(caption="Path to store image", filter=self.filter)
+        (path, unused_filter) = QFileDialog.getSaveFileName(caption="Path to store image",
+                                                            filter=self.filter)
 
         if not path:
             # cancel clicked
             return
 
-        extension = os.path.splitext(path)
+        _, extension = os.path.splitext(path)
+        extension = extension[1:]  # ignore dot at the beginning of extension
 
         format = ''
         if extension not in self.supported_extensions:
