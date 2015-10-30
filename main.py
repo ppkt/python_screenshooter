@@ -31,6 +31,8 @@ class ScreenShooter(Ui_MainWindow, QMainWindow):
         self.filter = "Images ({})".format(' '.join(
             ("*." + extension) for extension in self.supported_extensions))
 
+        self._take_screenshot()
+
     def btn_take_screenshot_clicked(self):
         """
         Action performed after clicking "Take screenshot"
@@ -46,9 +48,13 @@ class ScreenShooter(Ui_MainWindow, QMainWindow):
         Action performed after clicking "Save as..."
         """
 
+        if not self.screenshot:
+            return
+
         # display dialog with path to image
-        (path, unused_filter) = QFileDialog.getSaveFileName(caption="Path to store image",
-                                                            filter=self.filter)
+        (path, _) = QFileDialog.getSaveFileName(parent=self,
+                                                caption="Path to store image",
+                                                filter=self.filter)
 
         if not path:
             # cancel clicked

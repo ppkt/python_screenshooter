@@ -18,6 +18,16 @@
     <item row="1" column="0">
      <layout class="QHBoxLayout" name="horizontalLayout">
       <item>
+       <widget class="QToolButton" name="toolButton">
+        <property name="text">
+         <string>...</string>
+        </property>
+        <property name="icon">
+         <iconset theme="applications-system"/>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QPushButton" name="btn_upload">
         <property name="text">
          <string>Upload to Imgur</string>
@@ -168,9 +178,10 @@
   <tabstop>btn_take_screenshot</tabstop>
   <tabstop>combo_capture_mode</tabstop>
   <tabstop>spin_delay</tabstop>
-  <tabstop>btn_upload</tabstop>
-  <tabstop>btn_copy</tabstop>
   <tabstop>btn_save</tabstop>
+  <tabstop>btn_copy</tabstop>
+  <tabstop>btn_upload</tabstop>
+  <tabstop>toolButton</tabstop>
  </tabstops>
  <resources/>
  <connections/>
