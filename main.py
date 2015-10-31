@@ -4,7 +4,7 @@ import os
 from tempfile import NamedTemporaryFile
 import webbrowser
 
-from PyQt5.QtCore import QTimer, QSettings, Qt
+from PyQt5.QtCore import QSettings, Qt, QTimer, QThread, pyqtSignal
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QLineEdit, QLabel, \
     QDialog, QVBoxLayout
@@ -47,6 +47,28 @@ class ImgurAuthenticationDialog(QDialog):
         result = dialog.exec_()
         return result, dialog.input.text()
 
+class UploadThread(QThread):
+    file_uploaded = pyqtSignal(object)
+
+    def __init__(self, client, image):
+        QThread.__init__(self)
+        self.client = client
+        self.image = image
+
+    def run(self):
+        """
+        Create temporary image and upload it using provided credentials, after this emit
+        `file_uploaded` signal
+        :return:
+        """
+
+        response = None
+        with NamedTemporaryFile(suffix='.png') as temp_file:
+            self.image.save(temp_file.name)
+            response = self.client.upload_from_path(temp_file.name, anon=False)
+            logger.debug("Upload completed")
+
+        self.file_uploaded.emit(response)
 
 
 class ScreenShooter(Ui_MainWindow, QMainWindow):
@@ -58,6 +80,8 @@ class ScreenShooter(Ui_MainWindow, QMainWindow):
         self.btn_take_screenshot.clicked.connect(self.btn_take_screenshot_clicked)
         self.btn_save.clicked.connect(self.btn_save_clicked)
         self.btn_upload.clicked.connect(self.btn_upload_clicked)
+
+        self.progress_bar.hide()
 
         self.screenshot = None
 
@@ -75,6 +99,7 @@ class ScreenShooter(Ui_MainWindow, QMainWindow):
         """
         Action performed after clicking "Take screenshot"
         """
+        
         # hide main window
         self.hide()
 
@@ -155,15 +180,27 @@ class ScreenShooter(Ui_MainWindow, QMainWindow):
         if not client:
             return
 
-        # create temporary image and upload it using provided credentials, then open browser
-        # pointing to uploaded image
-        with NamedTemporaryFile(suffix='.png') as temp_file:
-            self.screenshot.save(temp_file.name)
-            response = client.upload_from_path(temp_file.name, anon=False)
-            logger.debug("Upload completed")
+        self.progress_bar.show()
+        self.btn_upload.setDisabled(True)
+
+        # upload in separate thread (to not freeze gui)
+        self.upload_thread = UploadThread(client, self.screenshot)
+        self.upload_thread.file_uploaded.connect(self._upload_finished)
+        self.upload_thread.start()
+
+
+    def _upload_finished(self, response):
+        """
+        Slot triggered when uploader thread finishes its execution (and image is present on Imgur)
+        """
+
+        if response:
+            logger.debug(response)
             url = "https://imgur.com/{}".format(response['id'])
             webbrowser.open(url)
-            logger.debug(response)
+
+        self.progress_bar.hide()
+        self.btn_upload.setEnabled(True)
 
     def _take_screenshot(self):
         """

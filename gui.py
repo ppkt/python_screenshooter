@@ -97,6 +97,12 @@ class Ui_MainWindow(object):
         self.preview_widget.setObjectName("preview_widget")
         self.gridLayout_2.addWidget(self.preview_widget, 0, 0, 1, 2)
         self.gridLayout.addLayout(self.gridLayout_2, 0, 0, 1, 1)
+        self.progress_bar = QtWidgets.QProgressBar(self.centralwidget)
+        self.progress_bar.setEnabled(True)
+        self.progress_bar.setMaximum(0)
+        self.progress_bar.setProperty("value", -1)
+        self.progress_bar.setObjectName("progress_bar")
+        self.gridLayout.addWidget(self.progress_bar, 2, 0, 1, 1)
         MainWindow.setCentralWidget(self.centralwidget)
 
         self.retranslateUi(MainWindow)
