@@ -1,10 +1,14 @@
 import logging
 import sys
 import os
+from tempfile import NamedTemporaryFile
+import webbrowser
 
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer, QSettings, Qt
 from PyQt5.QtGui import QGuiApplication
-from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog
+from PyQt5.QtWidgets import QApplication, QMainWindow, QFileDialog, QLineEdit, QLabel, \
+    QDialog, QVBoxLayout
+from imgurpython.client import ImgurClient
 
 from gui import Ui_MainWindow
 
@@ -13,6 +17,36 @@ handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
+
+with open('imgur_api_secret.txt') as file_:
+    IMGUR_API_SECRET = file_.read().strip()
+
+class ImgurAuthenticationDialog(QDialog):
+    def __init__(self, parent=None):
+        QDialog.__init__(self, parent)
+
+        self.setWindowModality(Qt.ApplicationModal)
+
+        layout = QVBoxLayout(self)
+
+        self.url = QLabel(self)
+        self.input = QLineEdit(self)
+        layout.addWidget(self.url)
+        layout.addWidget(self.input)
+
+        self.url.setWordWrap(True)
+        self.url.setOpenExternalLinks(True)
+
+        self.input.editingFinished.connect(self.accept)
+
+    @staticmethod
+    def getImgurPin(parent=None, window_title="", label_text=""):
+        dialog = ImgurAuthenticationDialog(parent)
+        dialog.setWindowTitle(window_title)
+        dialog.url.setText(label_text)
+        result = dialog.exec_()
+        return result, dialog.input.text()
+
 
 
 class ScreenShooter(Ui_MainWindow, QMainWindow):
@@ -23,6 +57,7 @@ class ScreenShooter(Ui_MainWindow, QMainWindow):
 
         self.btn_take_screenshot.clicked.connect(self.btn_take_screenshot_clicked)
         self.btn_save.clicked.connect(self.btn_save_clicked)
+        self.btn_upload.clicked.connect(self.btn_upload_clicked)
 
         self.screenshot = None
 
@@ -30,6 +65,9 @@ class ScreenShooter(Ui_MainWindow, QMainWindow):
         # create filter
         self.filter = "Images ({})".format(' '.join(
             ("*." + extension) for extension in self.supported_extensions))
+
+        # load app settings
+        self.settings = QSettings('ppkt', 'python_uploader')
 
         self._take_screenshot()
 
@@ -69,6 +107,63 @@ class ScreenShooter(Ui_MainWindow, QMainWindow):
             format = 'png'
         self.screenshot.save(path, format=format)
 
+    def _get_imgur_client(self):
+        """
+        Returns imgur client instance with authorized user. If user was not authorized previously,
+        will be asked for authentication on imgur site.
+
+        :return: instance of Imgur client with all tokens present or `None`
+        :rtype ImgurClient:
+        """
+
+        # check if credentials are present
+        access_token = self.settings.value('imgur_access_token', type=str)
+        refresh_token = self.settings.value('imgur_refresh_token', type=str)
+
+        if access_token and refresh_token:
+            client = ImgurClient('6ba31a58e98608d', IMGUR_API_SECRET, access_token, refresh_token)
+        else:
+            client = ImgurClient('6ba31a58e98608d', IMGUR_API_SECRET)
+            logger.debug("Authorization required")
+            authorization_url = client.get_auth_url()
+            logger.debug("Authorization url: %s", authorization_url)
+
+            (accepted, pin) = ImgurAuthenticationDialog().getImgurPin(
+                None, "User not authenticated",
+                ("Please open this <a href=\"{}\">URL</a> and log in using imgur credentials. Then "
+                 "paste autorization pin in form below").format(authorization_url))
+
+            if not accepted or not pin:
+                return None
+
+            logger.debug("Authorization pin: %s", pin)
+
+            credentials = client.authorize(pin)
+            client.set_user_auth(credentials['access_token'], credentials['refresh_token'])
+
+            # save tokens
+            self.settings.setValue('imgur_access_token', credentials['access_token'])
+            self.settings.setValue('imgur_refresh_token', credentials['refresh_token'])
+
+            logger.debug("Credentials are correct")
+
+        return client
+
+    def btn_upload_clicked(self):
+
+        client = self._get_imgur_client()
+        if not client:
+            return
+
+        # create temporary image and upload it using provided credentials, then open browser
+        # pointing to uploaded image
+        with NamedTemporaryFile(suffix='.png') as temp_file:
+            self.screenshot.save(temp_file.name)
+            response = client.upload_from_path(temp_file.name, anon=False)
+            logger.debug("Upload completed")
+            url = "https://imgur.com/{}".format(response['id'])
+            webbrowser.open(url)
+            logger.debug(response)
 
     def _take_screenshot(self):
         """
